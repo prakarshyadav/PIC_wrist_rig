@@ -7,23 +7,87 @@ import time
 import nidaqmx
 import nidaqmx.system
 from nidaqmx.constants import LineGrouping
-from nidaqmx.constants import Edge
-from nidaqmx.constants import AcquisitionType 
-import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use("TkAgg")
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
-from matplotlib.widgets import Slider
-
+from collections import deque
+from scipy.io import savemat
 
 class display_force_data(tk.Toplevel):
-    def __init__(self, parent, params, tmsi, gif_path, gestures,chkpt_path, daq, MVC_dict, inp_dim):
+    def __init__(self, parent, stream_trig, stream_force, target_profile_x,target_profile_y, trial_params, record = False):
         super().__init__(parent)
 
-        y_size = 200
-        self.geometry('%dx%d%+d+%d'%(400,y_size,-2500,0))
-        self.title('Training interface')
+        vis_buffer_len = 10
+        self.vis_xlim_pad = 3
+
+        self.force_holder = deque(list(np.empty(vis_buffer_len)))
+        self.trig_holder = deque(list(np.empty(vis_buffer_len,dtype= bool)))
+        self.x_axis = np.linspace(0,1,vis_buffer_len)
+
+        self.attributes('-fullscreen', True)
+        # self.geometry('1000x1000')
+        self.title('Force Visualization')
+        self.trial_params = trial_params
+        self.stream_trig = stream_trig
+        self.stream_force = stream_force
+        self.rec_flag = record
+        self.parent = parent
+        if self.rec_flag:
+            self.parent.dump_trig = []
+            self.parent.dump_force = []
+
+        fig = Figure(figsize=(7, 4), dpi=100)
+        self.disp_target = fig.add_subplot(111)
+        
+        self.disp_target.set_xlabel("Time (s)", fontsize=14)
+        self.disp_target.set_ylabel("Torque (Nm)", fontsize=14)
+        
+        self.canvas_disp_target = FigureCanvasTkAgg(fig, master=self)  
+        self.canvas_disp_target.draw()
+        self.canvas_disp_target.get_tk_widget().pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
+
+        self.disp_target.set_xlabel("Time (s)", fontsize=14)
+        self.disp_target.set_ylabel("Torque (Nm)", fontsize=14)
+        self.l_target = self.disp_target.plot(target_profile_x, target_profile_y, linewidth = 5, color = 'r')
+        self.l_current = self.disp_target.plot(self.x_axis, self.force_holder, linewidth = 3, color = 'b',)
+        self.disp_target.set_xlim([0,self.trial_params['duration']])
+        self.disp_target.set_ylim([0,self.trial_params['MVF']*0.5])
+
+        self.canvas_disp_target.draw()
+
+        self.stream_vis_button = tk.Button(self, text='START TRIAL', bg ='yellow')
+        self.stream_vis_button['command'] = self.start_vis
+        self.stream_vis_button.pack()
+        self.stream_vis_button.place(x=100, y=100)
+
+    def start_vis(self):
+        t0 = time.time()
+
+        while time.time()-t0 < self.trial_params['duration']+3:
+            time.sleep(0.01)
+            t_prev = time.time()-t0
+            
+            self.trig_holder.popleft()
+            trig = self.stream_trig.read(number_of_samples_per_channel=10)
+            self.trig_holder.append(trig[0])
+
+            self.force_holder.popleft()
+            force = abs(np.mean(self.stream_force.read(number_of_samples_per_channel=10)))*float(self.trial_params['conv_const'])
+            self.force_holder.append(force)
+
+            if self.rec_flag:
+                self.parent.dump_trig.append(trig[0])
+                self.parent.dump_force.append(force)
+
+            self.l_current[0].set_data(self.x_axis*(time.time()-t0-t_prev)+t_prev,self.force_holder)
+            self.disp_target.set_xlim([time.time()-t0-self.vis_xlim_pad,time.time()-t0+self.vis_xlim_pad])
+
+            # print(t_prev, time.time()-t0, (self.x_axis + t_prev)*(time.time()-t0-t_prev))
+            self.canvas_disp_target.draw()
+            self.update()
+        self.destroy()
+
 
 class APP(tk.Tk):
     def __init__(self):
@@ -217,6 +281,9 @@ class APP(tk.Tk):
         self.t_sombrero_force.focus()
         self.t_sombrero_force.place(x=500, y=490, width = 100)
 
+        self.target_profile_x = [0]
+        self.target_profile_y = [0]
+
         fig = Figure(figsize=(7, 4), dpi=100)
         self.disp_target = fig.add_subplot(111)
         
@@ -226,18 +293,45 @@ class APP(tk.Tk):
         self.canvas_disp_target = FigureCanvasTkAgg(fig, master=self)  
         self.canvas_disp_target.draw()
         self.canvas_disp_target.get_tk_widget().pack(side=tk.BOTTOM, fill='x', expand=True)
-        self.canvas_disp_target.get_tk_widget().place(y=600,)
+        self.canvas_disp_target.get_tk_widget().place(y=550,)
 
     def start_rec(self,):
         print('starting')
+
+        trial_params = {
+            "duration": float(self.trl_duration.get()),
+            "conv_const": float(self.conv_factor.get()),
+            "MVF": float(self.max_force.get()),
+            }
+        window = display_force_data(self, self.task_trig, 
+                                    self.in_stream_force, 
+                                    self.target_profile_x,
+                                    self.target_profile_y,
+                                    trial_params,
+                                    record=True
+                                    )
+        window.grab_set()
+        self.wait_window(window)
+
+        out_mat = {
+            "trigs": np.array(self.dump_trig),
+            "force": np.array(self.dump_force),
+            "target_profile": np.array((self.target_profile_x,self.target_profile_y)).T,
+                   }
+        savemat(os.path.join(self.dump_path.get(), self.trial_ID.get()+".mat"), out_mat)
+
         self.trial_ID.set(str(int(self.trial_ID.get())+1))
         current_trial = int(self.trial_ID.get())
         self.t_trial_ID.delete(0, 'end')
         self.t_trial_ID.insert(0, str(current_trial))
+        self.dump_path.get(), 
+        self.trial_ID.get(),
+
         self.update()
 
     def stop_rec(self,):
         print('stopping')
+
         self.trial_ID.set(str(int(self.trial_ID.get())+1))
         current_trial = int(self.trial_ID.get())
         self.t_trial_ID.delete(0, 'end')
@@ -246,8 +340,21 @@ class APP(tk.Tk):
 
     def test_force_read(self):
         self.test_force_read_button.config(bg = 'red')
-        self.test_force_read_button.config(bg = 'yellow')
         print("force trace for acclamatization")
+        trial_params = {
+            "duration": float(self.trl_duration.get()),
+            "conv_const": float(self.conv_factor.get()),
+            "MVF": float(self.max_force.get()),
+            }
+        window = display_force_data(self, self.task_trig, 
+                                    self.in_stream_force, 
+                                    self.target_profile_x,
+                                    self.target_profile_y,
+                                    trial_params,
+                                    )
+        window.grab_set()
+        self.wait_window(window)
+        self.test_force_read_button.config(bg = 'yellow')
 
     def check_dir(self):
         dump_name = self.dump_path.get()
