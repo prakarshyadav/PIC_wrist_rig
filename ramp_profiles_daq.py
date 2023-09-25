@@ -36,6 +36,7 @@ class display_force_data(tk.Toplevel):
         if self.rec_flag:
             self.parent.dump_trig = []
             self.parent.dump_force = []
+            self.parent.dump_time = []
 
         fig = Figure(figsize=(7, 4), dpi=100)
         self.disp_target = fig.add_subplot(111)
@@ -65,7 +66,7 @@ class display_force_data(tk.Toplevel):
         t0 = time.time()
 
         while time.time()-t0 < self.trial_params['duration']+3:
-            time.sleep(0.01)
+            time.sleep(0.001)
             t_prev = time.time()-t0
             
             self.trig_holder.popleft()
@@ -77,6 +78,7 @@ class display_force_data(tk.Toplevel):
             self.force_holder.append(force)
 
             if self.rec_flag:
+                self.parent.dump_time.append(t_prev)
                 self.parent.dump_trig.append(trig[0])
                 self.parent.dump_force.append(force)
 
@@ -314,8 +316,9 @@ class APP(tk.Tk):
         self.wait_window(window)
 
         out_mat = {
-            "trigs": np.array(self.dump_trig),
+            "time": np.array(self.dump_time),
             "force": np.array(self.dump_force),
+            "trigs": np.array(self.dump_trig),
             "target_profile": np.array((self.target_profile_x,self.target_profile_y)).T,
                    }
         savemat(os.path.join(self.dump_path.get(), self.trial_ID.get()+".mat"), out_mat)
