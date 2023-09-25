@@ -50,7 +50,7 @@ class display_force_data(tk.Toplevel):
 
         self.disp_target.set_xlabel("Time (s)", fontsize=14)
         self.disp_target.set_ylabel("Torque (Nm)", fontsize=14)
-        self.l_target = self.disp_target.plot(target_profile_x, target_profile_y, linewidth = 5, color = 'r')
+        self.l_target = self.disp_target.plot(target_profile_x, target_profile_y, linewidth = 7, color = 'r')
         self.l_current = self.disp_target.plot(self.x_axis, self.force_holder, linewidth = 3, color = 'b',)
         self.disp_target.set_xlim([0,self.trial_params['duration']])
         self.disp_target.set_ylim([0,self.trial_params['MVF']*0.5])
@@ -65,7 +65,7 @@ class display_force_data(tk.Toplevel):
     def start_vis(self):
         t0 = time.time()
 
-        while time.time()-t0 < self.trial_params['duration']+3:
+        while time.time()-t0 < self.trial_params['duration']:
             time.sleep(0.001)
             t_prev = time.time()-t0
             
