@@ -16,15 +16,20 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from matplotlib.widgets import Slider
 
+
+class display_force_data(tk.Toplevel):
+    def __init__(self, parent, params, tmsi, gif_path, gestures,chkpt_path, daq, MVC_dict, inp_dim):
+        super().__init__(parent)
+
+        y_size = 200
+        self.geometry('%dx%d%+d+%d'%(400,y_size,-2500,0))
+        self.title('Training interface')
+
 class APP(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title('Force Ramp Interface')
         self.geometry('700x1000')
-        
-
-
-
         """
         Buttons
         """
