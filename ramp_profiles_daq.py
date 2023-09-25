@@ -220,20 +220,24 @@ class APP(tk.Tk):
         
         self.canvas_disp_target = FigureCanvasTkAgg(fig, master=self)  
         self.canvas_disp_target.draw()
-        # self.canvas_disp_target.get_tk_widget().pack(expand=False)
         self.canvas_disp_target.get_tk_widget().pack(side=tk.BOTTOM, fill='x', expand=True)
         self.canvas_disp_target.get_tk_widget().place(y=600,)
-        # self.canvas_disp_target.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-
-        # toolbar = NavigationToolbar2TkAgg(canvas, self)
-        # toolbar.update()
-        # canvas._tkcanvas.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
     def start_rec(self,):
         print('starting')
+        self.trial_ID.set(str(int(self.trial_ID.get())+1))
+        current_trial = int(self.trial_ID.get())
+        self.t_trial_ID.delete(0, 'end')
+        self.t_trial_ID.insert(0, str(current_trial))
+        self.update()
 
     def stop_rec(self,):
         print('stopping')
+        self.trial_ID.set(str(int(self.trial_ID.get())+1))
+        current_trial = int(self.trial_ID.get())
+        self.t_trial_ID.delete(0, 'end')
+        self.t_trial_ID.insert(0, str(current_trial))
+        self.update()
 
     def test_force_read(self):
         self.test_force_read_button.config(bg = 'red')
