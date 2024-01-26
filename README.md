@@ -1,0 +1,1 @@
+Repo for streaming sensor data in real-time as a feedback to participant. Configured to work with Ni DAQ, can be replaced by anythihng else as needed. The Max Voluntary force estimation may need to be adjusted for general application. Designed to work with a custom dynamometer.
