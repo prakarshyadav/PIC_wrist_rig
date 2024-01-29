@@ -18,12 +18,12 @@ class display_force_data(tk.Toplevel):
     def __init__(self, parent, stream_trig, stream_force, target_profile_x,target_profile_y, trial_params, record = False):
         super().__init__(parent)
 
-        vis_buffer_len = 10
+        self.vis_buffer_len = 30
         self.vis_xlim_pad = 3
 
-        self.force_holder = deque(list(np.empty(vis_buffer_len)))
-        self.trig_holder = deque(list(np.empty(vis_buffer_len,dtype= bool)))
-        self.x_axis = np.linspace(0,1,vis_buffer_len)
+        self.force_holder = deque(list(np.empty(self.vis_buffer_len)))
+        self.trig_holder = deque(list(np.empty(self.vis_buffer_len,dtype= bool)))
+        self.x_axis = np.linspace(0,1,self.vis_buffer_len)
 
         self.attributes('-fullscreen', True)
         # self.geometry('1000x1000')
@@ -50,8 +50,8 @@ class display_force_data(tk.Toplevel):
 
         self.disp_target.set_xlabel("Time (s)", fontsize=14)
         self.disp_target.set_ylabel("Torque (Nm)", fontsize=14)
-        self.l_target = self.disp_target.plot(target_profile_x, target_profile_y, linewidth = 7, color = 'r')
-        self.l_current = self.disp_target.plot(self.x_axis, self.force_holder, linewidth = 3, color = 'b',)
+        self.l_target = self.disp_target.plot(target_profile_x, target_profile_y, linewidth = 50, color = 'r')
+        self.l_current = self.disp_target.plot(self.x_axis, self.force_holder, linewidth = 13, color = 'b',)
         self.disp_target.set_xlim([0,self.trial_params['duration']])
         self.disp_target.set_ylim([0,self.trial_params['MVF']*0.5])
 
@@ -66,23 +66,23 @@ class display_force_data(tk.Toplevel):
         t0 = time.time()
 
         while time.time()-t0 < self.trial_params['duration']:
-            time.sleep(0.001)
+            time.sleep(0.00001)
             t_prev = time.time()-t0
             
             self.trig_holder.popleft()
-            trig = self.stream_trig.read(number_of_samples_per_channel=10)
+            trig = self.stream_trig.read(number_of_samples_per_channel=self.vis_buffer_len)
             self.trig_holder.append(trig[0])
 
             self.force_holder.popleft()
-            force = abs(np.mean(self.stream_force.read(number_of_samples_per_channel=10)))*float(self.trial_params['conv_const'])
+            force = abs(np.mean(self.stream_force.read(number_of_samples_per_channel=self.vis_buffer_len)))*float(self.trial_params['conv_const'])
             self.force_holder.append(force)
 
             if self.rec_flag:
                 self.parent.dump_time.append(t_prev)
-                self.parent.dump_trig.append(trig[0])
+                self.parent.dump_trig.append(trig)
                 self.parent.dump_force.append(force)
-
-            self.l_current[0].set_data(self.x_axis*(time.time()-t0-t_prev)+t_prev,self.force_holder)
+            disp_force = sorted(self.force_holder)
+            self.l_current[0].set_data(self.x_axis*(time.time()-t0-t_prev)+t_prev,np.mean(disp_force[5:-5])*np.ones(self.vis_buffer_len))
             self.disp_target.set_xlim([time.time()-t0-self.vis_xlim_pad,time.time()-t0+self.vis_xlim_pad])
 
             # print(t_prev, time.time()-t0, (self.x_axis + t_prev)*(time.time()-t0-t_prev))
@@ -124,12 +124,14 @@ class APP(tk.Tk):
         self.check_dir_button.pack()
         self.check_dir_button.place(x=250, y=40)
 
+        today = time.strftime("%Y%m%d")
+
         self.dump_path = tk.StringVar()
         self.lbl_dump_path = ttk.Label(self, text='Dump Path:')
         self.lbl_dump_path.pack(fill='x', expand=True)
         self.lbl_dump_path.place(x=10, y=70)
         self.t_dump_path = tk.Entry(self, textvariable=self.dump_path)
-        self.t_dump_path.insert(0, r"C:\Users\praka\Desktop\TMSi data\N3 stim\P9\20230504\force_data")
+        self.t_dump_path.insert(0, "C://Users//NML//Desktop//Force_data//PX//"+today)
         self.t_dump_path.pack(fill='x', expand=True)
         self.t_dump_path.focus()
         self.t_dump_path.place(x=150, y=70, width = 500)
@@ -139,7 +141,7 @@ class APP(tk.Tk):
         self.lbl_daq_name.pack(fill='x', expand=True)
         self.lbl_daq_name.place(x=10, y=100)
         self.t_daq_name = tk.Entry(self, textvariable=self.daq_name)
-        self.t_daq_name.insert(0, "Dev3")
+        self.t_daq_name.insert(0, "Dev4")
         self.t_daq_name.pack(fill='x', expand=True)
         self.t_daq_name.focus()
         self.t_daq_name.place(x=150, y=100, width = 100)
@@ -194,7 +196,7 @@ class APP(tk.Tk):
         self.lbl_MVC_len.pack(fill='x', expand=True)
         self.lbl_MVC_len.place(x=10, y=250)
         self.t_MVC_len = tk.Entry(self, textvariable=self.MVC_duration)
-        self.t_MVC_len.insert(0, "5")
+        self.t_MVC_len.insert(0, "3")
         self.t_MVC_len.pack(fill='x', expand=True)
         self.t_MVC_len.focus()
         self.t_MVC_len.place(x=150, y=250, width = 100)
@@ -209,7 +211,7 @@ class APP(tk.Tk):
         self.lbl_trl_duration.pack(fill='x', expand=True)
         self.lbl_trl_duration.place(x=10, y=330)
         self.t_trl_duration = tk.Entry(self, textvariable=self.trl_duration)
-        self.t_trl_duration.insert(0, "60")
+        self.t_trl_duration.insert(0, "30")
         self.t_trl_duration.pack(fill='x', expand=True)
         self.t_trl_duration.focus()
         self.t_trl_duration.place(x=150, y=330, width = 100)
@@ -219,7 +221,7 @@ class APP(tk.Tk):
         self.lbl_init_wait.pack(fill='x', expand=True)
         self.lbl_init_wait.place(x=10, y=360)
         self.t_init_wait = tk.Entry(self, textvariable=self.init_wait)
-        self.t_init_wait.insert(0, "5")
+        self.t_init_wait.insert(0, "3")
         self.t_init_wait.pack(fill='x', expand=True)
         self.t_init_wait.focus()
         self.t_init_wait.place(x=150, y=360, width = 100)
@@ -229,7 +231,7 @@ class APP(tk.Tk):
         self.lbl_peak_ramp_force.pack(fill='x', expand=True)
         self.lbl_peak_ramp_force.place(x=310, y=360)
         self.t_peak_ramp_force = tk.Entry(self, textvariable=self.peak_ramp_force)
-        self.t_peak_ramp_force.insert(0, "0.3")
+        self.t_peak_ramp_force.insert(0, "0.15")
         self.t_peak_ramp_force.pack(fill='x', expand=True)
         self.t_peak_ramp_force.focus()
         self.t_peak_ramp_force.place(x=450, y=360, width = 100)
@@ -239,10 +241,21 @@ class APP(tk.Tk):
         self.lbl_max_force.place(x=400, y=150)
         self.max_force = tk.StringVar()
         self.max_force.set('0')
+        
         self.lbl_max_force_num = ttk.Label(self, textvariable=self.max_force,font=('Helvetica 30 bold'))
         self.lbl_max_force_num.pack(fill='x', expand=True)
         self.lbl_max_force_num.place(x=400, y=200)
 
+        self.t_max_force_num = tk.Entry(self, textvariable=self.max_force)
+        self.t_max_force_num.pack(fill='x', expand=True)
+        self.t_max_force_num.focus()
+        self.t_max_force_num.place(x=400, y=250, width = 200)
+
+        self.manualMVC_button = tk.Button(self, text='PUSH MVC', bg ='yellow')
+        self.manualMVC_button['command'] = self.manualMVC
+        self.manualMVC_button.pack()
+        self.manualMVC_button.place(x=400, y=280)
+        
         self.start_vanilla_button = tk.Button(self, text='PUSH VANILLA', bg ='yellow')
         self.start_vanilla_button['command'] = self.do_vanilla
         self.start_vanilla_button.pack()
@@ -278,7 +291,7 @@ class APP(tk.Tk):
         self.lbl_sombrero_force.pack(fill='x', expand=True)
         self.lbl_sombrero_force.place(x=310, y=490)
         self.t_sombrero_force = tk.Entry(self, textvariable=self.sombrero_force)
-        self.t_sombrero_force.insert(0, "0.1")
+        self.t_sombrero_force.insert(0, "0.15")
         self.t_sombrero_force.pack(fill='x', expand=True)
         self.t_sombrero_force.focus()
         self.t_sombrero_force.place(x=500, y=490, width = 100)
@@ -332,6 +345,11 @@ class APP(tk.Tk):
 
         self.update()
 
+    def manualMVC(self):
+        self.manualMVC_button.config(bg = 'green')
+        self.max_force.set(self.max_force.get())
+        self.update()
+
     def stop_rec(self,):
         print('stopping')
 
@@ -363,7 +381,7 @@ class APP(tk.Tk):
         dump_name = self.dump_path.get()
         if not os.path.isdir(dump_name):
             print("Dir not found, making it")
-            os.mkdir(dump_name)
+            os.makedirs(dump_name)
         self.check_dir_button.config(bg = 'green')
 
     def start_DAQ(self):
